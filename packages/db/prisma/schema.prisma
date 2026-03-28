@@ -1,0 +1,135 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Provenance: which system or pipeline produced rows. UI reads `slug` + display fields only.
+model Source {
+  id          String     @id @default(cuid())
+  slug        String     @unique
+  name        String
+  description String?
+  baseUrl     String?
+  type        SourceType @default(MANUAL)
+  metadata    Json       @default("{}")
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  kirtans Kirtan[]
+}
+
+enum SourceType {
+  MANUAL
+  CRAWLER
+  API
+  IMPORT
+}
+
+/// Canonical devotional piece. `slug` is globally unique for clean public URLs.
+model Kirtan {
+  id                    String    @id @default(cuid())
+  sourceId              String
+  source                Source    @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  externalId            String?
+  slug                  String    @unique
+  title                 String
+  titleTransliterated   String?
+  summary               String?
+  publishedAt           DateTime?
+  metadata              Json      @default("{}")
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  texts             KirtanText[]
+  audios            KirtanAudio[]
+  collectionLinks   KirtanCollection[]
+  relationsFrom     KirtanRelation[] @relation("KirtanRelationFrom")
+  relationsTo       KirtanRelation[] @relation("KirtanRelationTo")
+
+  @@unique([sourceId, externalId])
+  @@index([sourceId])
+  @@index([title])
+}
+
+enum KirtanTextKind {
+  GUJARATI_LYRICS
+  TRANSLITERATION
+  ENGLISH_TRANSLATION
+}
+
+model KirtanText {
+  id        String         @id @default(cuid())
+  kirtanId  String
+  kirtan    Kirtan         @relation(fields: [kirtanId], references: [id], onDelete: Cascade)
+  kind      KirtanTextKind
+  content   String
+  locale    String?
+  sortOrder Int            @default(0)
+  metadata  Json           @default("{}")
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@index([kirtanId, kind])
+}
+
+model KirtanAudio {
+  id          String   @id @default(cuid())
+  kirtanId    String
+  kirtan      Kirtan   @relation(fields: [kirtanId], references: [id], onDelete: Cascade)
+  url         String
+  mimeType    String?
+  durationSec Int?
+  title       String?
+  sortOrder   Int      @default(0)
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([kirtanId])
+}
+
+/// Curated groupings (album, theme, artist set). Ordering is per membership row.
+model Collection {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  description String?
+  sortOrder   Int      @default(0)
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  kirtans KirtanCollection[]
+}
+
+model KirtanCollection {
+  kirtanId     String
+  collectionId String
+  sortOrder    Int        @default(0)
+
+  kirtan     Kirtan     @relation(fields: [kirtanId], references: [id], onDelete: Cascade)
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  @@id([kirtanId, collectionId])
+  @@index([collectionId, sortOrder])
+}
+
+/// Graph edges between kirtans (same tune, response, alternate recording, etc.).
+model KirtanRelation {
+  id           String   @id @default(cuid())
+  fromKirtanId String
+  toKirtanId   String
+  relationType String
+  metadata     Json     @default("{}")
+
+  fromKirtan Kirtan @relation("KirtanRelationFrom", fields: [fromKirtanId], references: [id], onDelete: Cascade)
+  toKirtan   Kirtan @relation("KirtanRelationTo", fields: [toKirtanId], references: [id], onDelete: Cascade)
+
+  @@unique([fromKirtanId, toKirtanId, relationType])
+  @@index([fromKirtanId])
+  @@index([toKirtanId])
+}
