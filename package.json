@@ -8,6 +8,7 @@
     "lint": "turbo run lint",
     "db:generate": "pnpm --filter @ngb/db exec prisma generate",
     "db:migrate": "pnpm --filter @ngb/db exec prisma migrate dev",
+    "db:migrate:deploy": "pnpm --filter @ngb/db exec prisma migrate deploy",
     "db:push": "pnpm --filter @ngb/db exec prisma db push",
     "db:seed": "pnpm --filter @ngb/db exec prisma db seed",
     "db:studio": "pnpm --filter @ngb/db exec prisma studio",
