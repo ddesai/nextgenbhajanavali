@@ -11,3 +11,4 @@ coverage
 *.log
 .ingest
 .vercel
+packages/db/src/generated

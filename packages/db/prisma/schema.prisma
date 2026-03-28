@@ -1,6 +1,7 @@
 generator client {
   provider      = "prisma-client-js"
-  // native = local dev; rhel-openssl-3.0.x = Vercel / AWS Lambda Node runtimes
+  // Under src/ so tsc rootDir stays valid; engines ship next to compiled dist imports for Vercel.
+  output        = "../src/generated/prisma"
   binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 

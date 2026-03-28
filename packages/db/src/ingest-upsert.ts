@@ -1,5 +1,5 @@
 import type { IngestRecord } from "@ngb/content-schema";
-import type { Prisma } from "@prisma/client";
+import type { Prisma } from "./generated/prisma/client.js";
 import { assertChecksumNotReusedForOtherSlug } from "./ingest-guardrails.js";
 import { prisma } from "./client.js";
 

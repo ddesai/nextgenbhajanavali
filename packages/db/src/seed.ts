@@ -2,7 +2,7 @@ import {
   CollectionUpsertSchema,
   SourceUpsertSchema,
 } from "@ngb/content-schema";
-import { PrismaClient, type Prisma } from "@prisma/client";
+import { PrismaClient, type Prisma } from "./generated/prisma/client.js";
 
 function json(metadata: Record<string, unknown>): Prisma.InputJsonValue {
   return metadata as Prisma.InputJsonValue;

@@ -2,7 +2,7 @@ import {
   KirtanSearchHitSchema,
   type KirtanSearchHit,
 } from "@ngb/content-schema";
-import { Prisma } from "@prisma/client";
+import { Prisma } from "./generated/prisma/client.js";
 import { prisma } from "./client.js";
 
 /** Pagination + ranking modes. */

@@ -166,7 +166,7 @@ Vercel detects **Next.js** from the `package.json` at your configured **Root Dir
 | **Sitemap missing kirtans** | `DATABASE_URL` must be set at build/runtime for dynamic URLs; falls back to static routes only if DB queries fail. |
 | **Wrong canonical / OG URLs** | Set `NEXT_PUBLIC_SITE_URL` to the production origin. |
 | **`pnpm lint` fails in web** | Run from repo root after `pnpm install`; web uses `eslint.config.mjs` + `eslint-config-next`. |
-| **Prisma “Query Engine … rhel-openssl” on Vercel** | `binaryTargets` + `serverExternalPackages`, and `next.config.ts` sets `outputFileTracingRoot` (monorepo) + `outputFileTracingIncludes` for `node_modules/.pnpm/**/.prisma/client` so the `.node` engine is bundled; redeploy after pull. |
+| **Prisma “Query Engine … rhel-openssl” on Vercel** | Client is generated under `packages/db/src/generated/prisma` and copied to `dist/generated` on build so engines ship with `@ngb/db` (not only in pnpm’s store). Run `pnpm --filter @ngb/db build` locally if types are missing; never delete `dist/generated` on deploy. |
 | **Prisma migrate vs Supabase** | Use **direct** URL for migrate; **pooler** for the deployed app. |
 | **Checksum ingest error** | Two slugs share same checksum; fix adapter slug logic or set `NGB_INGEST_SKIP_CHECKSUM_GUARD=1` only as a last resort (documented in ingest CLI). |
 
