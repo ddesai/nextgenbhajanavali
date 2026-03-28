@@ -14,9 +14,35 @@ function createSql() {
   });
 }
 
-/** Postgres.js client — no native Prisma engine; works on Vercel Node. */
-export const sql: ReturnType<typeof postgres> =
-  g.__ngb_postgres ?? (g.__ngb_postgres = createSql());
+function getInstance(): ReturnType<typeof postgres> {
+  if (!g.__ngb_postgres) g.__ngb_postgres = createSql();
+  return g.__ngb_postgres;
+}
+
+/**
+ * Lazy Postgres.js client — no connection (and no `DATABASE_URL` check) until first use.
+ * Safe to import during Next.js build when env is unset.
+ */
+export const sql: ReturnType<typeof postgres> = new Proxy(
+  function stub() {
+    /* tagged-template target */
+  } as unknown as ReturnType<typeof postgres>,
+  {
+    get(_target, prop) {
+      const inst = getInstance();
+      const v = Reflect.get(inst, prop, inst);
+      return typeof v === "function" ? v.bind(getInstance()) : v;
+    },
+    apply(_target, _thisArg, argList) {
+      const inst = getInstance();
+      return Reflect.apply(
+        inst as unknown as (...args: unknown[]) => unknown,
+        inst,
+        argList as unknown[],
+      );
+    },
+  },
+) as ReturnType<typeof postgres>;
 
 export async function disconnectDb() {
   if (g.__ngb_postgres) {
