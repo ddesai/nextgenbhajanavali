@@ -1,7 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { CatalogError } from "@/components/catalog-error";
 import { KirtanCard } from "@/components/kirtan-card";
+import {
+  DATABASE_URL_MISSING_MESSAGE,
+  getDatabaseSetupHint,
+  isDatabaseConfigured,
+} from "@/lib/database-env";
 import { getCollectionBySlug } from "@/lib/queries";
 import { absoluteUrl } from "@/lib/metadata";
 
@@ -11,6 +17,9 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
+  if (!isDatabaseConfigured()) {
+    return { title: "Collection", robots: { index: false } };
+  }
   const col = await getCollectionBySlug(slug);
   if (!col)
     return { title: "Not found", robots: { index: false } };
@@ -28,6 +37,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function CollectionDetailPage({ params }: Props) {
   const { slug } = await params;
+  if (!isDatabaseConfigured()) {
+    return (
+      <div className="space-y-8">
+        <CatalogError
+          title="Collections unavailable"
+          message={DATABASE_URL_MISSING_MESSAGE}
+          hint={getDatabaseSetupHint()}
+        />
+      </div>
+    );
+  }
   const col = await getCollectionBySlug(slug);
   if (!col) notFound();
 

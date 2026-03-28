@@ -1,6 +1,7 @@
 import {
   BROWSE_CATEGORY_SLUGS,
   getSitemapKirtansAndCollections,
+  resolveDatabaseUrl,
 } from "@ngb/db";
 import type { MetadataRoute } from "next";
 
@@ -32,7 +33,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     lastModified: new Date(),
   }));
 
-  if (!process.env.DATABASE_URL) {
+  if (!resolveDatabaseUrl()) {
     return [...staticRoutes, ...browseCategoryRoutes];
   }
 

@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import {
+  getDatabaseSetupHint,
+  isDatabaseConfigured,
+} from "@/lib/database-env";
+import {
   parseSearchSortParam,
   searchKirtansWithTotal,
   type KirtanListFilters,
@@ -17,6 +21,16 @@ function parseBool(v: string | null): boolean {
  * JSON for programmatic clients; same ranking and filters as `/search`.
  */
 export async function GET(req: Request) {
+  if (!isDatabaseConfigured()) {
+    return NextResponse.json(
+      {
+        error: "DATABASE_URL is not configured for this deployment.",
+        hint: getDatabaseSetupHint(),
+      },
+      { status: 503 },
+    );
+  }
+
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q") ?? "";
   const take = Math.min(

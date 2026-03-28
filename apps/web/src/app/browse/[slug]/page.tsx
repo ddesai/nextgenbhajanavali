@@ -2,8 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BROWSE_CATEGORIES, type BrowseCategorySlug } from "@ngb/db";
+import { CatalogError } from "@/components/catalog-error";
 import { EmptyState } from "@/components/empty-state";
 import { KirtanCard } from "@/components/kirtan-card";
+import {
+  DATABASE_URL_MISSING_MESSAGE,
+  getDatabaseSetupHint,
+  isDatabaseConfigured,
+} from "@/lib/database-env";
 import { listKirtansByBrowseSlug } from "@/lib/queries";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -29,6 +35,29 @@ export default async function BrowseCategoryPage({ params }: Props) {
   if (!BROWSE_CATEGORIES[key]) notFound();
 
   const def = BROWSE_CATEGORIES[key];
+
+  if (!isDatabaseConfigured()) {
+    return (
+      <div className="space-y-8">
+        <header>
+          <nav className="mb-4 text-sm text-muted-foreground">
+            <Link href="/browse" className="hover:text-foreground">
+              Browse
+            </Link>
+            <span className="mx-2">/</span>
+            <span className="text-foreground">{def.label}</span>
+          </nav>
+          <h1 className="font-display text-3xl font-medium">{def.label}</h1>
+        </header>
+        <CatalogError
+          title="Browse unavailable"
+          message={DATABASE_URL_MISSING_MESSAGE}
+          hint={getDatabaseSetupHint()}
+        />
+      </div>
+    );
+  }
+
   const kirtans = await listKirtansByBrowseSlug(slug, 60);
 
   return (

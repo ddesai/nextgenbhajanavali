@@ -6,6 +6,11 @@ import { EmptyState } from "@/components/empty-state";
 import { KirtanCard } from "@/components/kirtan-card";
 import { SearchFilterChips } from "@/components/search-filter-chips";
 import { SearchRefineBar } from "@/components/search-refine-bar";
+import {
+  DATABASE_URL_MISSING_MESSAGE,
+  getDatabaseSetupHint,
+  isDatabaseConfigured,
+} from "@/lib/database-env";
 import { absoluteUrl } from "@/lib/metadata";
 import { parseSearchSortParam, searchKirtansWithTotal } from "@/lib/queries";
 
@@ -50,26 +55,30 @@ export default async function SearchPage({ searchParams }: Props) {
   let total = 0;
   let searchError: string | null = null;
 
-  try {
-    const out = await searchKirtansWithTotal(
-      {
-        q,
-        hasAudio: hasAudio || undefined,
-        hasEnglish: hasEnglish || undefined,
-        chip: chip || undefined,
-        author: author || undefined,
-        category: category || undefined,
-        raag: raag || undefined,
-        sort,
-        take: 48,
-      },
-      { orderPopular: chip === "popular" },
-    );
-    results = out.hits;
-    total = out.total;
-  } catch (e) {
-    searchError =
-      e instanceof Error ? e.message : "Search is temporarily unavailable.";
+  if (!isDatabaseConfigured()) {
+    searchError = DATABASE_URL_MISSING_MESSAGE;
+  } else {
+    try {
+      const out = await searchKirtansWithTotal(
+        {
+          q,
+          hasAudio: hasAudio || undefined,
+          hasEnglish: hasEnglish || undefined,
+          chip: chip || undefined,
+          author: author || undefined,
+          category: category || undefined,
+          raag: raag || undefined,
+          sort,
+          take: 48,
+        },
+        { orderPopular: chip === "popular" },
+      );
+      results = out.hits;
+      total = out.total;
+    } catch (e) {
+      searchError =
+        e instanceof Error ? e.message : "Search is temporarily unavailable.";
+    }
   }
 
   const hasFilters =
@@ -114,7 +123,7 @@ export default async function SearchPage({ searchParams }: Props) {
           <CatalogError
             title="Search unavailable"
             message={searchError}
-            hint="If you recently deployed: run database migrations (pg_trgm + searchVector per docs/SEARCH.md) and ensure DATABASE_URL is set on the server."
+            hint={getDatabaseSetupHint()}
           />
         ) : null}
 

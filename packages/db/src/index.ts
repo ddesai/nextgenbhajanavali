@@ -1,3 +1,4 @@
+export { resolveDatabaseUrl } from "./database-url.js";
 export { upsertIngestRecord } from "./ingest-upsert.js";
 export { assertChecksumNotReusedForOtherSlug } from "./ingest-guardrails.js";
 export { sql, disconnectDb } from "./client.js";

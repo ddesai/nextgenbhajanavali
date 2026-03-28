@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { CatalogError } from "@/components/catalog-error";
 import { EmptyState } from "@/components/empty-state";
+import {
+  DATABASE_URL_MISSING_MESSAGE,
+  getDatabaseSetupHint,
+  isDatabaseConfigured,
+} from "@/lib/database-env";
 import { listCollections } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +18,24 @@ export const metadata: Metadata = {
 };
 
 export default async function CollectionsPage() {
+  if (!isDatabaseConfigured()) {
+    return (
+      <div className="space-y-8">
+        <header className="space-y-2">
+          <h1 className="font-display text-3xl font-medium">Collections</h1>
+          <p className="text-muted-foreground">
+            Hand-picked groupings—open one and read straight through.
+          </p>
+        </header>
+        <CatalogError
+          title="Collections unavailable"
+          message={DATABASE_URL_MISSING_MESSAGE}
+          hint={getDatabaseSetupHint()}
+        />
+      </div>
+    );
+  }
+
   const collections = await listCollections();
 
   return (

@@ -1,5 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { CatalogError } from "@/components/catalog-error";
+import {
+  DATABASE_URL_MISSING_MESSAGE,
+  getDatabaseSetupHint,
+  isDatabaseConfigured,
+} from "@/lib/database-env";
 import { getBrowseCategoryStats } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +17,24 @@ export const metadata: Metadata = {
 };
 
 export default async function BrowsePage() {
+  if (!isDatabaseConfigured()) {
+    return (
+      <div className="space-y-10">
+        <header className="space-y-2">
+          <h1 className="font-display text-3xl font-medium">Browse by category</h1>
+          <p className="text-muted-foreground">
+            Gentle groupings—tap a card to see every kirtan we have in that spirit.
+          </p>
+        </header>
+        <CatalogError
+          title="Browse unavailable"
+          message={DATABASE_URL_MISSING_MESSAGE}
+          hint={getDatabaseSetupHint()}
+        />
+      </div>
+    );
+  }
+
   const categories = await getBrowseCategoryStats();
 
   return (

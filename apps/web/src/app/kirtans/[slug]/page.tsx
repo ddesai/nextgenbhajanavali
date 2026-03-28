@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { CatalogError } from "@/components/catalog-error";
 import { KirtanDetailView } from "@/components/kirtan/kirtan-detail-view";
+import {
+  DATABASE_URL_MISSING_MESSAGE,
+  getDatabaseSetupHint,
+  isDatabaseConfigured,
+} from "@/lib/database-env";
 import { getKirtanBySlug, getRelatedKirtans } from "@/lib/queries";
 import { absoluteUrl } from "@/lib/metadata";
 
@@ -30,6 +36,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function KirtanDetailPage({ params }: Props) {
   const { slug } = await params;
+  if (!isDatabaseConfigured()) {
+    return (
+      <div className="space-y-6">
+        <CatalogError
+          title="Kirtan unavailable"
+          message={DATABASE_URL_MISSING_MESSAGE}
+          hint={getDatabaseSetupHint()}
+        />
+      </div>
+    );
+  }
   const k = await getKirtanBySlug(slug);
   if (!k) notFound();
 

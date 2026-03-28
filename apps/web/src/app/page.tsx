@@ -8,6 +8,11 @@ import {
   listCollections,
   searchKirtansFiltered,
 } from "@/lib/queries";
+import {
+  DATABASE_URL_MISSING_MESSAGE,
+  getDatabaseSetupHint,
+  isDatabaseConfigured,
+} from "@/lib/database-env";
 import { absoluteUrl } from "@/lib/metadata";
 
 export const dynamic = "force-dynamic";
@@ -31,15 +36,19 @@ export default async function HomePage() {
   let collections: Awaited<ReturnType<typeof listCollections>> = [];
   let loadError: string | null = null;
 
-  try {
-    [featured, categories, collections] = await Promise.all([
-      searchKirtansFiltered({ chip: "popular", take: 6 }, { orderPopular: true }),
-      getBrowseCategoryStats(),
-      listCollections(),
-    ]);
-  } catch (e) {
-    loadError =
-      e instanceof Error ? e.message : "Could not load catalog. Check the database connection.";
+  if (!isDatabaseConfigured()) {
+    loadError = DATABASE_URL_MISSING_MESSAGE;
+  } else {
+    try {
+      [featured, categories, collections] = await Promise.all([
+        searchKirtansFiltered({ chip: "popular", take: 6 }, { orderPopular: true }),
+        getBrowseCategoryStats(),
+        listCollections(),
+      ]);
+    } catch (e) {
+      loadError =
+        e instanceof Error ? e.message : "Could not load catalog. Check the database connection.";
+    }
   }
 
   if (loadError) {
@@ -68,7 +77,7 @@ export default async function HomePage() {
         <CatalogError
           title="Catalog unavailable"
           message={loadError}
-          hint="For local demos: ensure PostgreSQL is running, DATABASE_URL is set, and run pnpm db:push && pnpm db:seed. See README troubleshooting."
+          hint={getDatabaseSetupHint()}
         />
       </div>
     );
