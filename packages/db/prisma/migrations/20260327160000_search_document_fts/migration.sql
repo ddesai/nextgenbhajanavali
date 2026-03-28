@@ -44,7 +44,7 @@ DROP TRIGGER IF EXISTS ngb_kirttext_search_doc ON "KirtanText";
 CREATE TRIGGER ngb_kirttext_search_doc
 AFTER INSERT OR UPDATE OR DELETE ON "KirtanText"
 FOR EACH ROW
-EXECUTE PROCEDURE ngb_trg_kirttext_search_doc
+EXECUTE FUNCTION ngb_trg_kirttext_search_doc();
 
 DO $$
 DECLARE
