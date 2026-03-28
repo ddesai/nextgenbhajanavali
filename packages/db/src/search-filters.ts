@@ -1,6 +1,5 @@
-import type { Prisma } from "./generated/prisma/client.js";
-
 import type { SearchSort } from "./search-engine.js";
+import { sql } from "./client.js";
 
 export type KirtanListFilters = {
   q?: string;
@@ -19,72 +18,69 @@ export type KirtanListFilters = {
   skip?: number;
 };
 
-export function buildKirtanWhere(
-  filters: KirtanListFilters,
-): Prisma.KirtanWhereInput {
-  const and: Prisma.KirtanWhereInput[] = [];
+/** Safe `%term%` for `ILIKE ... ESCAPE '\\'`. */
+export function ilikeContainsPattern(s: string): string {
+  const esc = s
+    .replace(/\\/g, "\\\\")
+    .replace(/%/g, "\\%")
+    .replace(/_/g, "\\_");
+  return `%${esc}%`;
+}
+
+function sqlAnd(fragments: unknown[]): unknown {
+  const parts = fragments.filter(Boolean);
+  if (parts.length === 0) return sql`TRUE`;
+  let acc: unknown = parts[0];
+  for (let i = 1; i < parts.length; i++)
+    acc = sql`${acc as never} AND ${parts[i] as never}`;
+  return acc;
+}
+
+/** SQL boolean expression for `k` (Kirtan row alias). Empty filters → `TRUE`. */
+export function buildKirtanFilterSql(filters: KirtanListFilters): unknown {
+  const parts: unknown[] = [];
 
   const q = filters.q?.trim();
   if (q) {
-    and.push({
-      OR: [
-        { title: { contains: q, mode: "insensitive" } },
-        { titleTransliterated: { contains: q, mode: "insensitive" } },
-        { summary: { contains: q, mode: "insensitive" } },
-      ],
-    });
+    const p = ilikeContainsPattern(q);
+    parts.push(sql`(
+      k.title ILIKE ${p} ESCAPE '\\'
+      OR k."titleTransliterated" ILIKE ${p} ESCAPE '\\'
+      OR k.summary ILIKE ${p} ESCAPE '\\'
+    )`);
   }
 
   if (filters.hasAudio) {
-    and.push({ audios: { some: {} } });
+    parts.push(
+      sql`EXISTS (SELECT 1 FROM "KirtanAudio" a0 WHERE a0."kirtanId" = k.id)`,
+    );
   }
 
   if (filters.hasEnglish) {
-    and.push({
-      texts: { some: { kind: "ENGLISH_TRANSLATION" } },
-    });
+    parts.push(sql`EXISTS (
+      SELECT 1 FROM "KirtanText" te
+      WHERE te."kirtanId" = k.id AND te.kind = 'ENGLISH_TRANSLATION'
+    )`);
   }
 
   const chip = filters.chip?.toLowerCase();
   if (chip === "arti") {
-    and.push({
-      OR: [
-        {
-          metadata: {
-            path: ["categoryEnglish"],
-            equals: "Arti",
-          },
-        },
-        { title: { contains: "આરતી", mode: "insensitive" } },
-        { summary: { contains: "arti", mode: "insensitive" } },
-      ],
-    });
+    parts.push(sql`(
+      k.metadata->>'categoryEnglish' = 'Arti'
+      OR k.title LIKE ${"%આરતી%"}
+      OR lower(coalesce(k.summary, '')) LIKE ${"%arti%"}
+    )`);
   } else if (chip === "prarthana") {
-    and.push({
-      OR: [
-        {
-          metadata: {
-            path: ["categoryEnglish"],
-            equals: "Prarthana",
-          },
-        },
-        { summary: { contains: "Prarthana", mode: "insensitive" } },
-      ],
-    });
+    parts.push(sql`(
+      k.metadata->>'categoryEnglish' = 'Prarthana'
+      OR lower(coalesce(k.summary, '')) LIKE ${"%prarthana%"}
+    )`);
   } else if (chip === "dhun") {
-    and.push({
-      OR: [
-        {
-          metadata: {
-            path: ["categoryEnglish"],
-            equals: "Dhun",
-          },
-        },
-        { summary: { contains: "Dhun", mode: "insensitive" } },
-      ],
-    });
+    parts.push(sql`(
+      k.metadata->>'categoryEnglish' = 'Dhun'
+      OR lower(coalesce(k.summary, '')) LIKE ${"%dhun%"}
+    )`);
   }
 
-  if (and.length === 0) return {};
-  return { AND: and };
+  return sqlAnd(parts);
 }

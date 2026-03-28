@@ -1,7 +1,7 @@
 import { createReadStream } from "node:fs";
 import { createInterface } from "node:readline";
 import { IngestRecordSchema } from "@ngb/content-schema";
-import { prisma, upsertIngestRecord } from "@ngb/db";
+import { upsertIngestRecord } from "@ngb/db";
 import type { Logger } from "../core/logger.js";
 
 /**

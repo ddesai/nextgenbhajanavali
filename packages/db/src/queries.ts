@@ -1,4 +1,3 @@
-import type { Prisma } from "./generated/prisma/client.js";
 import {
   BROWSE_CATEGORIES,
   type BrowseCategorySlug,
@@ -10,22 +9,25 @@ import {
   type KirtanSearchHit,
   type KirtanSummary,
 } from "@ngb/content-schema";
-import { prisma } from "./client.js";
+import { sql } from "./client.js";
 import { searchKirtansAdvanced } from "./search-engine.js";
 import {
-  buildKirtanWhere,
+  buildKirtanFilterSql,
   type KirtanListFilters,
 } from "./search-filters.js";
 
-const kirtanListInclude = {
-  source: { select: { slug: true, name: true } },
-  audios: { select: { id: true }, take: 1 },
-  texts: {
-    where: { kind: "ENGLISH_TRANSLATION" as const },
-    select: { id: true },
-    take: 1,
-  },
-} satisfies Prisma.KirtanInclude;
+type KirtanListRow = {
+  id: string;
+  slug: string;
+  title: string;
+  titleTransliterated: string | null;
+  summary: string | null;
+  metadata: unknown;
+  sourceSlug: string;
+  sourceName: string;
+  hasAudio: boolean;
+  hasEnglish: boolean;
+};
 
 function readMeta(m: unknown): Record<string, unknown> | null {
   if (!m || typeof m !== "object" || Array.isArray(m)) return null;
@@ -40,9 +42,7 @@ function popularScoreFromMeta(meta: Record<string, unknown> | null): number {
   return 0;
 }
 
-function toSummary(
-  row: Prisma.KirtanGetPayload<{ include: typeof kirtanListInclude }>,
-): KirtanSummary {
+function toSummary(row: KirtanListRow): KirtanSummary {
   const meta = readMeta(row.metadata);
   const categoryEnglish =
     typeof meta?.categoryEnglish === "string" ? meta.categoryEnglish : null;
@@ -52,10 +52,10 @@ function toSummary(
     title: row.title,
     titleTransliterated: row.titleTransliterated,
     summary: row.summary,
-    sourceSlug: row.source.slug,
-    sourceName: row.source.name,
-    hasAudio: row.audios.length > 0,
-    hasEnglish: row.texts.length > 0,
+    sourceSlug: row.sourceSlug,
+    sourceName: row.sourceName,
+    hasAudio: row.hasAudio,
+    hasEnglish: row.hasEnglish,
     categoryEnglish,
     popularScore: popularScoreFromMeta(meta) || undefined,
   });
@@ -107,15 +107,65 @@ export async function searchKirtansFiltered(
 }
 
 export async function getKirtanBySlug(slug: string): Promise<KirtanDetail | null> {
-  const row = await prisma.kirtan.findUnique({
-    where: { slug },
-    include: {
-      source: { select: { slug: true, name: true } },
-      texts: { orderBy: [{ sortOrder: "asc" }, { kind: "asc" }] },
-      audios: { orderBy: { sortOrder: "asc" } },
-    },
-  });
+  const kRows = await sql<
+    {
+      id: string;
+      sourceSlug: string;
+      sourceName: string;
+      externalId: string | null;
+      metadata: unknown;
+      slug: string;
+      title: string;
+      titleTransliterated: string | null;
+      summary: string | null;
+    }[]
+  >`
+    SELECT
+      k.id,
+      k.slug,
+      k.title,
+      k."titleTransliterated",
+      k.summary,
+      k."externalId",
+      k.metadata,
+      s.slug AS "sourceSlug",
+      s.name AS "sourceName"
+    FROM "Kirtan" k
+    INNER JOIN "Source" s ON s.id = k."sourceId"
+    WHERE k.slug = ${slug}
+  `;
+  const row = kRows[0];
   if (!row) return null;
+
+  const [texts, audios] = await Promise.all([
+    sql<
+      {
+        kind: string;
+        content: string;
+        locale: string | null;
+        sortOrder: number;
+      }[]
+    >`
+      SELECT kind, content, locale, "sortOrder"
+      FROM "KirtanText"
+      WHERE "kirtanId" = ${row.id}
+      ORDER BY "sortOrder" ASC, kind ASC
+    `,
+    sql<
+      {
+        url: string;
+        title: string | null;
+        durationSec: number | null;
+        mimeType: string | null;
+        sortOrder: number;
+      }[]
+    >`
+      SELECT url, title, "durationSec", "mimeType", "sortOrder"
+      FROM "KirtanAudio"
+      WHERE "kirtanId" = ${row.id}
+      ORDER BY "sortOrder" ASC
+    `,
+  ]);
 
   const meta = readMeta(row.metadata);
 
@@ -136,8 +186,7 @@ export async function getKirtanBySlug(slug: string): Promise<KirtanDetail | null
         author: typeof meta.author === "string" ? meta.author : null,
         authorLatin:
           typeof meta.authorLatin === "string" ? meta.authorLatin : null,
-        sourceKey:
-          typeof meta.sourceKey === "string" ? meta.sourceKey : null,
+        sourceKey: typeof meta.sourceKey === "string" ? meta.sourceKey : null,
         externalId: row.externalId,
       }
     : undefined;
@@ -148,22 +197,22 @@ export async function getKirtanBySlug(slug: string): Promise<KirtanDetail | null
     title: row.title,
     titleTransliterated: row.titleTransliterated,
     summary: row.summary,
-    sourceSlug: row.source.slug,
-    sourceName: row.source.name,
-    hasAudio: row.audios.length > 0,
-    hasEnglish: row.texts.some((t) => t.kind === "ENGLISH_TRANSLATION"),
+    sourceSlug: row.sourceSlug,
+    sourceName: row.sourceName,
+    hasAudio: audios.length > 0,
+    hasEnglish: texts.some((t) => t.kind === "ENGLISH_TRANSLATION"),
     categoryEnglish:
       typeof meta?.categoryEnglish === "string"
         ? meta.categoryEnglish
         : undefined,
     popularScore: popularScoreFromMeta(meta) || undefined,
-    texts: row.texts.map((t) => ({
+    texts: texts.map((t) => ({
       kind: t.kind,
       content: t.content,
       locale: t.locale,
       sortOrder: t.sortOrder,
     })),
-    audios: row.audios.map((a) => ({
+    audios: audios.map((a) => ({
       url: a.url,
       title: a.title,
       durationSec: a.durationSec,
@@ -175,81 +224,160 @@ export async function getKirtanBySlug(slug: string): Promise<KirtanDetail | null
 }
 
 export async function listCollections() {
-  return prisma.collection.findMany({
-    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-    select: {
-      id: true,
-      slug: true,
-      name: true,
-      description: true,
-      _count: { select: { kirtans: true } },
-    },
-  });
+  return sql<
+    {
+      id: string;
+      slug: string;
+      name: string;
+      description: string | null;
+      kirtan_count: number;
+    }[]
+  >`
+    SELECT
+      c.id,
+      c.slug,
+      c.name,
+      c.description,
+      (SELECT count(*)::int FROM "KirtanCollection" kc WHERE kc."collectionId" = c.id) AS kirtan_count
+    FROM "Collection" c
+    ORDER BY c."sortOrder" ASC, c.name ASC
+  `.then((rows) =>
+    rows.map((r) => ({
+      id: r.id,
+      slug: r.slug,
+      name: r.name,
+      description: r.description,
+      _count: { kirtans: r.kirtan_count },
+    })),
+  );
 }
 
 export async function getCollectionBySlug(slug: string) {
-  const col = await prisma.collection.findUnique({
-    where: { slug },
-    include: {
-      kirtans: {
-        orderBy: { sortOrder: "asc" },
-        include: {
-          kirtan: { include: kirtanListInclude },
-        },
-      },
-    },
-  });
+  const colRows = await sql<
+    {
+      id: string;
+      slug: string;
+      name: string;
+      description: string | null;
+    }[]
+  >`
+    SELECT id, slug, name, description
+    FROM "Collection"
+    WHERE slug = ${slug}
+  `;
+  const col = colRows[0];
   if (!col) return null;
+
+  const rows = await sql<(KirtanListRow & { linkSortOrder: number })[]>`
+    SELECT
+      k.id,
+      k.slug,
+      k.title,
+      k."titleTransliterated",
+      k.summary,
+      k.metadata,
+      s.slug AS "sourceSlug",
+      s.name AS "sourceName",
+      EXISTS (SELECT 1 FROM "KirtanAudio" a WHERE a."kirtanId" = k.id) AS "hasAudio",
+      EXISTS (
+        SELECT 1 FROM "KirtanText" t
+        WHERE t."kirtanId" = k.id AND t.kind = 'ENGLISH_TRANSLATION'
+      ) AS "hasEnglish",
+      kc."sortOrder" AS "linkSortOrder"
+    FROM "KirtanCollection" kc
+    INNER JOIN "Kirtan" k ON k.id = kc."kirtanId"
+    INNER JOIN "Source" s ON s.id = k."sourceId"
+    WHERE kc."collectionId" = ${col.id}
+    ORDER BY kc."sortOrder" ASC
+  `;
+
   return {
     id: col.id,
     slug: col.slug,
     name: col.name,
     description: col.description,
-    kirtans: col.kirtans.map((r) => ({
-      sortOrder: r.sortOrder,
-      kirtan: toSummary(r.kirtan),
+    kirtans: rows.map((r) => ({
+      sortOrder: r.linkSortOrder,
+      kirtan: toSummary(r),
     })),
   };
 }
 
 export async function getRelatedKirtans(kirtanId: string, take = 8) {
-  const rels = await prisma.kirtanRelation.findMany({
-    where: { OR: [{ fromKirtanId: kirtanId }, { toKirtanId: kirtanId }] },
-    take: take * 2,
-    include: {
-      fromKirtan: { include: kirtanListInclude },
-      toKirtan: { include: kirtanListInclude },
-    },
-  });
+  const rels = await sql<
+    {
+      fromKirtanId: string;
+      toKirtanId: string;
+    }[]
+  >`
+    SELECT "fromKirtanId", "toKirtanId"
+    FROM "KirtanRelation"
+    WHERE "fromKirtanId" = ${kirtanId} OR "toKirtanId" = ${kirtanId}
+    LIMIT ${take * 2}
+  `;
 
-  const summaries = new Map<string, KirtanSummary>();
+  const otherIds: string[] = [];
   for (const r of rels) {
-    const a = r.fromKirtanId === kirtanId ? r.toKirtan : r.fromKirtan;
-    if (a.id !== kirtanId) summaries.set(a.id, toSummary(a));
-    if (summaries.size >= take) break;
+    const oid = r.fromKirtanId === kirtanId ? r.toKirtanId : r.fromKirtanId;
+    if (oid !== kirtanId && !otherIds.includes(oid)) otherIds.push(oid);
+    if (otherIds.length >= take) break;
   }
 
-  const list = [...summaries.values()];
-  if (list.length > 0) return list;
-
-  const sameCat = await prisma.kirtan.findFirst({
-    where: { id: kirtanId },
-    select: { metadata: true },
-  });
-  const cat = readMeta(sameCat?.metadata)?.categoryEnglish;
-  if (typeof cat === "string") {
-    const fallbacks = await prisma.kirtan.findMany({
-      where: {
-        id: { not: kirtanId },
-        metadata: { path: ["categoryEnglish"], equals: cat },
-      },
-      take,
-      include: kirtanListInclude,
-    });
-    return fallbacks.map(toSummary);
+  if (otherIds.length > 0) {
+    const rows = await sql<KirtanListRow[]>`
+      SELECT
+        k.id,
+        k.slug,
+        k.title,
+        k."titleTransliterated",
+        k.summary,
+        k.metadata,
+        s.slug AS "sourceSlug",
+        s.name AS "sourceName",
+        EXISTS (SELECT 1 FROM "KirtanAudio" a WHERE a."kirtanId" = k.id) AS "hasAudio",
+        EXISTS (
+          SELECT 1 FROM "KirtanText" t
+          WHERE t."kirtanId" = k.id AND t.kind = 'ENGLISH_TRANSLATION'
+        ) AS "hasEnglish"
+      FROM "Kirtan" k
+      INNER JOIN "Source" s ON s.id = k."sourceId"
+      WHERE k.id in ${sql(otherIds)}
+    `;
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    return otherIds
+      .map((id) => byId.get(id))
+      .filter(Boolean)
+      .map((row) => toSummary(row!));
   }
 
-  return [];
+  const sameCat = await sql<{ metadata: unknown }[]>`
+    SELECT metadata FROM "Kirtan" WHERE id = ${kirtanId} LIMIT 1
+  `;
+  const cat = readMeta(sameCat[0]?.metadata)?.categoryEnglish;
+  if (typeof cat !== "string") return [];
+
+  const fallbacks = await sql<KirtanListRow[]>`
+    SELECT
+      k.id,
+      k.slug,
+      k.title,
+      k."titleTransliterated",
+      k.summary,
+      k.metadata,
+      s.slug AS "sourceSlug",
+      s.name AS "sourceName",
+      EXISTS (SELECT 1 FROM "KirtanAudio" a WHERE a."kirtanId" = k.id) AS "hasAudio",
+      EXISTS (
+        SELECT 1 FROM "KirtanText" t
+        WHERE t."kirtanId" = k.id AND t.kind = 'ENGLISH_TRANSLATION'
+      ) AS "hasEnglish"
+    FROM "Kirtan" k
+    INNER JOIN "Source" s ON s.id = k."sourceId"
+    WHERE k.id != ${kirtanId}
+      AND k.metadata->>'categoryEnglish' = ${cat}
+    LIMIT ${take}
+  `;
+  return fallbacks.map(toSummary);
 }
 
 export async function getBrowseCategoryStats(): Promise<
@@ -264,15 +392,15 @@ export async function getBrowseCategoryStats(): Promise<
 
   for (const slug of Object.keys(BROWSE_CATEGORIES) as BrowseCategorySlug[]) {
     const def = BROWSE_CATEGORIES[slug];
-    const w = buildKirtanWhere({ chip: slug });
-    const count = await prisma.kirtan.count({
-      where: w,
-    });
+    const filterSql = buildKirtanFilterSql({ chip: slug });
+    const cntRows = await sql<{ count: bigint }[]>`
+      SELECT count(*)::bigint AS count FROM "Kirtan" k WHERE ${filterSql as never}
+    `;
     out.push({
       slug,
       label: def.label,
       blurb: def.blurb,
-      count,
+      count: Number(cntRows[0]?.count ?? 0),
     });
   }
 
@@ -285,18 +413,46 @@ export async function listKirtansByBrowseSlug(
 ): Promise<KirtanSummary[]> {
   const s = slug.toLowerCase();
   if (!(s in BROWSE_CATEGORIES)) return [];
-  const where = buildKirtanWhere({ chip: s });
-  const rows = await prisma.kirtan.findMany({
-    where,
-    take,
-    orderBy: { title: "asc" },
-    include: kirtanListInclude,
-  });
+  const filterSql = buildKirtanFilterSql({ chip: s });
+  const rows = await sql<KirtanListRow[]>`
+    SELECT
+      k.id,
+      k.slug,
+      k.title,
+      k."titleTransliterated",
+      k.summary,
+      k.metadata,
+      s.slug AS "sourceSlug",
+      s.name AS "sourceName",
+      EXISTS (SELECT 1 FROM "KirtanAudio" a WHERE a."kirtanId" = k.id) AS "hasAudio",
+      EXISTS (
+        SELECT 1 FROM "KirtanText" t
+        WHERE t."kirtanId" = k.id AND t.kind = 'ENGLISH_TRANSLATION'
+      ) AS "hasEnglish"
+    FROM "Kirtan" k
+    INNER JOIN "Source" s ON s.id = k."sourceId"
+    WHERE ${filterSql as never}
+    ORDER BY k.title ASC
+    LIMIT ${take}
+  `;
   return rows.map(toSummary);
 }
 
+/** For `sitemap.xml`: slugs + lastmod. */
+export async function getSitemapKirtansAndCollections() {
+  const [kirtans, collections] = await Promise.all([
+    sql<{ slug: string; updatedAt: Date }[]>`
+      SELECT slug, "updatedAt" FROM "Kirtan"
+    `,
+    sql<{ slug: string; updatedAt: Date }[]>`
+      SELECT slug, "updatedAt" FROM "Collection"
+    `,
+  ]);
+  return { kirtans, collections };
+}
+
 export {
-  buildKirtanWhere,
+  buildKirtanFilterSql,
   type KirtanListFilters,
 } from "./search-filters.js";
 export {

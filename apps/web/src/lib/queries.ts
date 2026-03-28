@@ -3,7 +3,7 @@ import "server-only";
 export {
   BROWSE_CATEGORIES,
   BROWSE_CATEGORY_SLUGS,
-  buildKirtanWhere,
+  buildKirtanFilterSql,
   getBrowseCategoryStats,
   getCollectionBySlug,
   getKirtanBySlug,

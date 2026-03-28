@@ -10,7 +10,7 @@
     }
   },
   "scripts": {
-    "build": "prisma generate && tsc -p tsconfig.build.json && rm -rf dist/generated && cp -R src/generated dist/generated",
+    "build": "tsc -p tsconfig.build.json",
     "lint": "prisma validate"
   },
   "prisma": {
@@ -18,7 +18,7 @@
   },
   "dependencies": {
     "@ngb/content-schema": "workspace:*",
-    "@prisma/client": "6.19.2"
+    "postgres": "^3.4.5"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

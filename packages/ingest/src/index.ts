@@ -7,7 +7,10 @@ export type { Logger } from "./core/logger.js";
 export { writeDiscoveryQueue } from "./pipeline/write-queue.js";
 export { runExtract } from "./pipeline/run-extract.js";
 export { runNormalize } from "./pipeline/run-normalize.js";
-export { runSyncNormalizedFile, disconnectPrisma } from "./sync/run-sync-file.js";
+export {
+  runSyncNormalizedFile,
+  disconnectDbPool as disconnectPrisma,
+} from "./sync/run-sync-file.js";
 export { runImportIngestFile } from "./sync/run-import-ingest.js";
 export { mapNormalizedToIngestRecord } from "./sync/map-to-ingest.js";
 export { buildIngestRecordFromNormalized } from "./sync/build-ingest-record.js";

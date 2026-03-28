@@ -5,7 +5,7 @@
 import { createReadStream } from "node:fs";
 import { createInterface } from "node:readline";
 import { IngestRecordSchema } from "@ngb/content-schema";
-import { prisma, upsertIngestRecord } from "@ngb/db";
+import { disconnectDb, upsertIngestRecord } from "@ngb/db";
 
 async function main() {
   const path = process.argv[2];
@@ -27,9 +27,9 @@ async function main() {
 }
 
 main()
-  .then(() => prisma.$disconnect())
+  .then(() => disconnectDb())
   .catch(async (e) => {
     console.error(e);
-    await prisma.$disconnect();
+    await disconnectDb();
     process.exit(1);
   });

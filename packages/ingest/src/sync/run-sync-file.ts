@@ -1,7 +1,7 @@
 import { createReadStream } from "node:fs";
 import { createInterface } from "node:readline";
 import { NormalizedKirtanSchema } from "@ngb/content-schema";
-import { prisma, upsertIngestRecord } from "@ngb/db";
+import { disconnectDb, upsertIngestRecord } from "@ngb/db";
 import { mapNormalizedToIngestRecord } from "./map-to-ingest.js";
 import type { Logger } from "../core/logger.js";
 
@@ -30,6 +30,6 @@ export async function runSyncNormalizedFile(opts: {
   }
 }
 
-export async function disconnectPrisma() {
-  await prisma.$disconnect();
+export async function disconnectDbPool() {
+  await disconnectDb();
 }

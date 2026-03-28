@@ -2,8 +2,8 @@ import {
   KirtanSearchHitSchema,
   type KirtanSearchHit,
 } from "@ngb/content-schema";
-import { Prisma } from "./generated/prisma/client.js";
-import { prisma } from "./client.js";
+import { sql } from "./client.js";
+import { ilikeContainsPattern } from "./search-filters.js";
 
 /** Pagination + ranking modes. */
 export type SearchSort = "relevance" | "title_asc" | "title_desc" | "popular";
@@ -42,15 +42,6 @@ function popularScoreFromMeta(meta: Record<string, unknown> | null): number {
   return 0;
 }
 
-/** Escape `%` / `_` for `ILIKE ... ESCAPE '\\'`. */
-function ilikeContainsPattern(s: string): string {
-  const esc = s
-    .replace(/\\/g, "\\\\")
-    .replace(/%/g, "\\%")
-    .replace(/_/g, "\\_");
-  return `%${esc}%`;
-}
-
 /** De-accent Latin so “Hāre” and “Hare” share a retrieval branch. */
 function foldLatinQuery(s: string): string {
   return s
@@ -68,37 +59,37 @@ function wantsFoldedTsqueryBranch(q: string): boolean {
   return folded.length > 0 && folded !== plain;
 }
 
-function buildTsCombinedSql(q: string): Prisma.Sql {
-  const a = Prisma.sql`websearch_to_tsquery('simple', ${q})`;
+function buildTsCombinedSql(q: string): unknown {
+  const a = sql`websearch_to_tsquery('simple', ${q})`;
   if (!wantsFoldedTsqueryBranch(q)) return a;
   const folded = foldLatinQuery(q);
-  const b = Prisma.sql`websearch_to_tsquery('simple', ${folded})`;
-  return Prisma.sql`(${a} || ${b})`;
+  const b = sql`websearch_to_tsquery('simple', ${folded})`;
+  return sql`(${a as never} || ${b as never})`;
 }
 
-function chipWhereSql(chip: string | undefined): Prisma.Sql {
+function chipWhereSql(chip: string | undefined): unknown {
   const c = chip?.toLowerCase();
-  if (!c || c === "popular") return Prisma.empty;
+  if (!c || c === "popular") return sql``;
   if (c === "arti") {
-    return Prisma.sql`AND (
+    return sql`AND (
       k.metadata->>'categoryEnglish' = 'Arti'
       OR k.title LIKE ${"%આરતી%"}
       OR lower(coalesce(k.summary, '')) LIKE ${"%arti%"}
     )`;
   }
   if (c === "prarthana") {
-    return Prisma.sql`AND (
+    return sql`AND (
       k.metadata->>'categoryEnglish' = 'Prarthana'
       OR lower(coalesce(k.summary, '')) LIKE ${"%prarthana%"}
     )`;
   }
   if (c === "dhun") {
-    return Prisma.sql`AND (
+    return sql`AND (
       k.metadata->>'categoryEnglish' = 'Dhun'
       OR lower(coalesce(k.summary, '')) LIKE ${"%dhun%"}
     )`;
   }
-  return Prisma.empty;
+  return sql``;
 }
 
 function defaultSort(
@@ -114,20 +105,20 @@ function defaultSort(
 function orderBySql(
   sort: SearchSort,
   hasQuery: boolean,
-  tsCombined: Prisma.Sql | null,
+  tsCombined: unknown | null,
   trgmNeedle: string,
-): Prisma.Sql {
+): unknown {
   if (sort === "popular") {
-    return Prisma.sql`ORDER BY COALESCE(NULLIF(TRIM(k.metadata->>'popularScore'), ''), '0')::int DESC NULLS LAST, k.title ASC`;
+    return sql`ORDER BY COALESCE(NULLIF(TRIM(k.metadata->>'popularScore'), ''), '0')::int DESC NULLS LAST, k.title ASC`;
   }
   if (sort === "title_desc") {
-    return Prisma.sql`ORDER BY k.title DESC`;
+    return sql`ORDER BY k.title DESC`;
   }
   if (sort === "title_asc" || !hasQuery || !tsCombined) {
-    return Prisma.sql`ORDER BY k.title ASC`;
+    return sql`ORDER BY k.title ASC`;
   }
-  return Prisma.sql`ORDER BY (
-    COALESCE(ts_rank_cd(k."searchVector", ${tsCombined}, 32), 0)::float8 * 12.0
+  return sql`ORDER BY (
+    COALESCE(ts_rank_cd(k."searchVector", ${tsCombined as never}, 32), 0)::float8 * 12.0
     + CASE WHEN char_length(${trgmNeedle}) >= 3 THEN
         GREATEST(
           similarity(left(k."searchDocument", 8000), ${trgmNeedle}),
@@ -164,43 +155,43 @@ export async function searchKirtansAdvanced(
   const tsCombined = hasQuery ? buildTsCombinedSql(qLimited) : null;
 
   const audioSql = hasAudio
-    ? Prisma.sql`AND EXISTS (SELECT 1 FROM "KirtanAudio" a WHERE a."kirtanId" = k.id)`
-    : Prisma.empty;
+    ? sql`AND EXISTS (SELECT 1 FROM "KirtanAudio" a WHERE a."kirtanId" = k.id)`
+    : sql``;
   const englishSql = hasEnglish
-    ? Prisma.sql`AND EXISTS (SELECT 1 FROM "KirtanText" t0 WHERE t0."kirtanId" = k.id AND t0.kind = 'ENGLISH_TRANSLATION')`
-    : Prisma.empty;
+    ? sql`AND EXISTS (SELECT 1 FROM "KirtanText" t0 WHERE t0."kirtanId" = k.id AND t0.kind = 'ENGLISH_TRANSLATION')`
+    : sql``;
 
   const authorSql =
     author.length > 0
-      ? Prisma.sql`AND (
+      ? sql`AND (
           k.metadata->>'author' ILIKE ${ilikeContainsPattern(author)} ESCAPE '\\'
           OR k.metadata->>'authorLatin' ILIKE ${ilikeContainsPattern(author)} ESCAPE '\\'
         )`
-      : Prisma.empty;
+      : sql``;
 
   const categorySql =
     category.length > 0
-      ? Prisma.sql`AND (
+      ? sql`AND (
           k.metadata->>'categoryEnglish' ILIKE ${ilikeContainsPattern(category)} ESCAPE '\\'
           OR k.metadata->>'categoryGujarati' ILIKE ${ilikeContainsPattern(category)} ESCAPE '\\'
         )`
-      : Prisma.empty;
+      : sql``;
 
   const raagSql =
     raag.length > 0
-      ? Prisma.sql`AND (
+      ? sql`AND (
           k.metadata->>'raagEnglish' ILIKE ${ilikeContainsPattern(raag)} ESCAPE '\\'
           OR k.metadata->>'raagGujarati' ILIKE ${ilikeContainsPattern(raag)} ESCAPE '\\'
         )`
-      : Prisma.empty;
+      : sql``;
 
   const chipSql = chipWhereSql(chip);
 
   const matchSql =
     !hasQuery || !tsCombined
-      ? Prisma.sql`TRUE`
-      : Prisma.sql`(
-          k."searchVector" @@ ${tsCombined}
+      ? sql`TRUE`
+      : sql`(
+          k."searchVector" @@ ${tsCombined as never}
           OR (
             char_length(${trgmNeedle}) >= 3 AND (
               left(k."searchDocument", 8000) % ${trgmNeedle}
@@ -213,32 +204,32 @@ export async function searchKirtansAdvanced(
 
   const snippetSql =
     hasQuery && tsCombined
-      ? Prisma.sql`ts_headline(
+      ? sql`ts_headline(
           'simple',
           left(coalesce(k.summary, '') || E'\n' || k."searchDocument", 12000),
-          ${tsCombined},
+          ${tsCombined as never},
           ${headlineOpts}
         )`
-      : Prisma.sql`left(trim(coalesce(k.summary, '') || ' ' || left(k."searchDocument", 320)), 420)`;
+      : sql`left(trim(coalesce(k.summary, '') || ' ' || left(k."searchDocument", 320)), 420)`;
 
   const orderSql = orderBySql(sort, hasQuery, tsCombined, trgmNeedle);
 
-  const rows = await prisma.$queryRaw<
-    {
-      id: string;
-      slug: string;
-      title: string;
-      titleTransliterated: string | null;
-      summary: string | null;
-      metadata: unknown;
-      sourceSlug: string;
-      sourceName: string;
-      hasAudio: boolean;
-      hasEnglish: boolean;
-      snippet: string | null;
-      fullCount: bigint;
-    }[]
-  >(Prisma.sql`
+  type SearchRow = {
+    id: string;
+    slug: string;
+    title: string;
+    titleTransliterated: string | null;
+    summary: string | null;
+    metadata: unknown;
+    sourceSlug: string;
+    sourceName: string;
+    hasAudio: boolean;
+    hasEnglish: boolean;
+    snippet: string | null;
+    fullCount: bigint;
+  };
+
+  const rows = (await sql`
     SELECT
       k.id,
       k.slug,
@@ -257,17 +248,17 @@ export async function searchKirtansAdvanced(
       COUNT(*) OVER() AS "fullCount"
     FROM "Kirtan" k
     INNER JOIN "Source" s ON s.id = k."sourceId"
-    WHERE ${matchSql}
-    ${audioSql}
-    ${englishSql}
-    ${authorSql}
-    ${categorySql}
-    ${raagSql}
-    ${chipSql}
-    ${orderSql}
+    WHERE ${matchSql as never}
+    ${audioSql as never}
+    ${englishSql as never}
+    ${authorSql as never}
+    ${categorySql as never}
+    ${raagSql as never}
+    ${chipSql as never}
+    ${orderSql as never}
     OFFSET ${skip}
     LIMIT ${take}
-  `);
+  `) as SearchRow[];
 
   const total = rows[0] ? Number(rows[0].fullCount) : 0;
 

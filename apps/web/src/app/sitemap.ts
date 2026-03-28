@@ -1,4 +1,7 @@
-import { BROWSE_CATEGORY_SLUGS, prisma } from "@ngb/db";
+import {
+  BROWSE_CATEGORY_SLUGS,
+  getSitemapKirtansAndCollections,
+} from "@ngb/db";
 import type { MetadataRoute } from "next";
 
 export const dynamic = "force-dynamic";
@@ -34,10 +37,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }
 
   try {
-    const [kirtans, collections] = await Promise.all([
-      prisma.kirtan.findMany({ select: { slug: true, updatedAt: true } }),
-      prisma.collection.findMany({ select: { slug: true, updatedAt: true } }),
-    ]);
+    const { kirtans, collections } = await getSitemapKirtansAndCollections();
 
     const kirtanRoutes: MetadataRoute.Sitemap = kirtans.map((k) => ({
       url: `${base}/kirtans/${k.slug}`,

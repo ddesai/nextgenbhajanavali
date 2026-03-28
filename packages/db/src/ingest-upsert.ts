@@ -1,11 +1,8 @@
 import type { IngestRecord } from "@ngb/content-schema";
-import type { Prisma } from "./generated/prisma/client.js";
+import { randomUUID } from "node:crypto";
+import postgres from "postgres";
 import { assertChecksumNotReusedForOtherSlug } from "./ingest-guardrails.js";
-import { prisma } from "./client.js";
-
-function json(meta: Record<string, unknown>): Prisma.InputJsonValue {
-  return meta as Prisma.InputJsonValue;
-}
+import { sql } from "./client.js";
 
 /** Idempotent upsert used by batch sync tools and the ingest CLI. */
 export async function upsertIngestRecord(record: IngestRecord) {
@@ -19,68 +16,104 @@ export async function upsertIngestRecord(record: IngestRecord) {
     lastIngestedAt,
   };
 
-  const source = await prisma.source.upsert({
-    where: { slug: record.source.slug },
-    create: { ...record.source, metadata: json(record.source.metadata) },
-    update: {
-      name: record.source.name,
-      description: record.source.description,
-      baseUrl: record.source.baseUrl,
-      type: record.source.type,
-      metadata: json(record.source.metadata),
-    },
-  });
+  const sourceRows = await sql<
+    { id: string }[]
+  >`
+    INSERT INTO "Source" ("id", "slug", "name", "description", "baseUrl", "type", "metadata")
+    VALUES (
+      ${randomUUID()},
+      ${record.source.slug},
+      ${record.source.name},
+      ${record.source.description ?? null},
+      ${record.source.baseUrl ?? null},
+      ${record.source.type}::"SourceType",
+      ${sql.json(record.source.metadata as unknown as postgres.JSONValue)}
+    )
+    ON CONFLICT ("slug") DO UPDATE SET
+      "name" = EXCLUDED."name",
+      "description" = EXCLUDED."description",
+      "baseUrl" = EXCLUDED."baseUrl",
+      "type" = EXCLUDED."type",
+      "metadata" = EXCLUDED."metadata",
+      "updatedAt" = NOW()
+    RETURNING id
+  `;
+  const source = sourceRows[0]!;
 
-  const kirtan = await prisma.kirtan.upsert({
-    where: { slug: record.kirtan.slug },
-    create: {
-      slug: record.kirtan.slug,
-      title: record.kirtan.title,
-      titleTransliterated: record.kirtan.titleTransliterated,
-      summary: record.kirtan.summary,
-      externalId: record.kirtan.externalId,
-      publishedAt: record.kirtan.publishedAt,
-      metadata: json(kirtanMetadata),
-      sourceId: source.id,
-    },
-    update: {
-      title: record.kirtan.title,
-      titleTransliterated: record.kirtan.titleTransliterated,
-      summary: record.kirtan.summary,
-      externalId: record.kirtan.externalId,
-      publishedAt: record.kirtan.publishedAt,
-      metadata: json(kirtanMetadata),
-      sourceId: source.id,
-    },
-  });
+  const kRows = await sql<{ id: string }[]>`
+    INSERT INTO "Kirtan" (
+      "id",
+      "sourceId",
+      "externalId",
+      "slug",
+      "title",
+      "titleTransliterated",
+      "summary",
+      "publishedAt",
+      "metadata",
+      "searchDocument"
+    )
+    VALUES (
+      ${randomUUID()},
+      ${source.id},
+      ${record.kirtan.externalId ?? null},
+      ${record.kirtan.slug},
+      ${record.kirtan.title},
+      ${record.kirtan.titleTransliterated ?? null},
+      ${record.kirtan.summary ?? null},
+      ${record.kirtan.publishedAt ?? null},
+      ${sql.json(kirtanMetadata as unknown as postgres.JSONValue)},
+      ''
+    )
+    ON CONFLICT ("slug") DO UPDATE SET
+      "sourceId" = EXCLUDED."sourceId",
+      "externalId" = EXCLUDED."externalId",
+      "title" = EXCLUDED."title",
+      "titleTransliterated" = EXCLUDED."titleTransliterated",
+      "summary" = EXCLUDED."summary",
+      "publishedAt" = EXCLUDED."publishedAt",
+      "metadata" = EXCLUDED."metadata",
+      "updatedAt" = NOW()
+    RETURNING id
+  `;
+  const kirtan = kRows[0]!;
 
-  await prisma.kirtanText.deleteMany({ where: { kirtanId: kirtan.id } });
-  await prisma.kirtanAudio.deleteMany({ where: { kirtanId: kirtan.id } });
+  await sql`DELETE FROM "KirtanText" WHERE "kirtanId" = ${kirtan.id}`;
+  await sql`DELETE FROM "KirtanAudio" WHERE "kirtanId" = ${kirtan.id}`;
 
-  if (record.texts.length > 0) {
-    await prisma.kirtanText.createMany({
-      data: record.texts.map((t) => ({
-        kirtanId: kirtan.id,
-        kind: t.kind,
-        content: t.content,
-        locale: t.locale,
-        sortOrder: t.sortOrder,
-        metadata: json(t.metadata),
-      })),
-    });
+  for (const t of record.texts) {
+    await sql`
+      INSERT INTO "KirtanText" (
+        "id", "kirtanId", kind, content, locale, "sortOrder", metadata
+      )
+      VALUES (
+        ${randomUUID()},
+        ${kirtan.id},
+        ${t.kind}::"KirtanTextKind",
+        ${t.content},
+        ${t.locale ?? null},
+        ${t.sortOrder},
+        ${sql.json(t.metadata as unknown as postgres.JSONValue)}
+      )
+    `;
   }
-  if (record.audios.length > 0) {
-    await prisma.kirtanAudio.createMany({
-      data: record.audios.map((a) => ({
-        kirtanId: kirtan.id,
-        url: a.url,
-        mimeType: a.mimeType,
-        durationSec: a.durationSec,
-        title: a.title,
-        sortOrder: a.sortOrder,
-        metadata: json(a.metadata),
-      })),
-    });
+
+  for (const a of record.audios) {
+    await sql`
+      INSERT INTO "KirtanAudio" (
+        "id", "kirtanId", url, "mimeType", "durationSec", title, "sortOrder", metadata
+      )
+      VALUES (
+        ${randomUUID()},
+        ${kirtan.id},
+        ${a.url},
+        ${a.mimeType ?? null},
+        ${a.durationSec ?? null},
+        ${a.title ?? null},
+        ${a.sortOrder},
+        ${sql.json(a.metadata as unknown as postgres.JSONValue)}
+      )
+    `;
   }
 
   return { sourceId: source.id, kirtanId: kirtan.id };
