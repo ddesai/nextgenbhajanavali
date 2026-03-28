@@ -8,4 +8,6 @@ export {
   CardTitle,
 } from "./components/card";
 export { Input } from "./components/input";
+export { Skeleton } from "./components/skeleton";
+export { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/tabs";
 export { cn } from "./lib/utils";

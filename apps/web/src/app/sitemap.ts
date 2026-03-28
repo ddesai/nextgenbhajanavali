@@ -1,4 +1,4 @@
-import { prisma } from "@ngb/db";
+import { BROWSE_CATEGORY_SLUGS, prisma } from "@ngb/db";
 import type { MetadataRoute } from "next";
 
 export const dynamic = "force-dynamic";
@@ -8,7 +8,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ??
     "http://localhost:3000";
 
-  const staticPaths = ["", "/kirtans", "/search", "/collections"];
+  const staticPaths = [
+    "",
+    "/kirtans",
+    "/search",
+    "/collections",
+    "/browse",
+    "/about",
+  ];
+
+  const browseCategoryRoutes: MetadataRoute.Sitemap = BROWSE_CATEGORY_SLUGS.map(
+    (slug) => ({
+      url: `${base}/browse/${slug}`,
+      lastModified: new Date(),
+    }),
+  );
 
   const staticRoutes: MetadataRoute.Sitemap = staticPaths.map((path) => ({
     url: `${base}${path}`,
@@ -16,7 +30,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }));
 
   if (!process.env.DATABASE_URL) {
-    return staticRoutes;
+    return [...staticRoutes, ...browseCategoryRoutes];
   }
 
   try {
@@ -35,8 +49,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: c.updatedAt,
     }));
 
-    return [...staticRoutes, ...kirtanRoutes, ...collectionRoutes];
+    return [
+      ...staticRoutes,
+      ...browseCategoryRoutes,
+      ...kirtanRoutes,
+      ...collectionRoutes,
+    ];
   } catch {
-    return staticRoutes;
+    return [...staticRoutes, ...browseCategoryRoutes];
   }
 }

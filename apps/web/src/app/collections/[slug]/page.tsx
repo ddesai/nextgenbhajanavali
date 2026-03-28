@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getCollectionBySlug } from "@/lib/queries";
 import { KirtanCard } from "@/components/kirtan-card";
+import { getCollectionBySlug } from "@/lib/queries";
 import { absoluteUrl } from "@/lib/metadata";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -13,11 +13,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const col = await getCollectionBySlug(slug);
   if (!col)
-    return { title: "Collection not found", robots: { index: false } };
+    return { title: "Not found", robots: { index: false } };
 
   return {
     title: col.name,
-    description: col.description ?? `Kirtans in the “${col.name}” collection.`,
+    description: col.description ?? `Kirtans in “${col.name}”.`,
     alternates: { canonical: `/collections/${col.slug}` },
     openGraph: {
       title: col.name,
@@ -34,23 +34,16 @@ export default async function CollectionDetailPage({ params }: Props) {
   return (
     <div className="space-y-8">
       <header className="space-y-3">
-        <nav aria-label="Breadcrumb">
-          <ol className="flex flex-wrap gap-2 text-sm text-muted-foreground">
-            <li>
-              <Link
-                href="/collections"
-                className="rounded-sm hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              >
-                Collections
-              </Link>
-            </li>
-            <li aria-hidden>/</li>
-            <li className="text-foreground">{col.slug}</li>
-          </ol>
+        <nav className="text-sm text-muted-foreground">
+          <Link href="/collections" className="hover:text-foreground">
+            Collections
+          </Link>
+          <span className="mx-2">/</span>
+          <span className="text-foreground">{col.name}</span>
         </nav>
-        <h1 className="text-3xl font-semibold tracking-tight">{col.name}</h1>
+        <h1 className="font-display text-3xl font-medium">{col.name}</h1>
         {col.description ? (
-          <p className="text-lg text-muted-foreground">{col.description}</p>
+          <p className="max-w-lg text-muted-foreground">{col.description}</p>
         ) : null}
       </header>
 

@@ -1,25 +1,28 @@
 import type { Metadata } from "next";
-import { searchKirtans } from "@/lib/queries";
+import Link from "next/link";
 import { KirtanCard } from "@/components/kirtan-card";
+import { searchKirtansFiltered } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Browse kirtans",
-  description: "Alphabetical list of kirtans and bhajans in the catalog.",
+  title: "All kirtans",
   alternates: { canonical: "/kirtans" },
 };
 
 export default async function KirtansIndexPage() {
-  const items = await searchKirtans("", 100);
+  const items = await searchKirtansFiltered({ take: 120 });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <header>
-        <h1 className="text-3xl font-semibold tracking-tight">All kirtans</h1>
+        <h1 className="font-display text-3xl font-medium">Every kirtan</h1>
         <p className="mt-2 text-muted-foreground">
-          {items.length} entr{items.length === 1 ? "y" : "ies"} in the current
-          catalog. Use search to filter by title or transliteration.
+          Alphabetical list. For filters and speed, use{" "}
+          <Link href="/search" className="font-medium text-primary hover:underline">
+            search
+          </Link>
+          .
         </p>
       </header>
       <ul className="grid list-none gap-4 p-0 sm:grid-cols-2">

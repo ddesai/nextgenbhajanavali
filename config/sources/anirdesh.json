@@ -1,0 +1,16 @@
+{
+  "adapterId": "anirdesh",
+  "enabled": true,
+  "source": {
+    "slug": "anirdesh-kirtan-muktavali",
+    "name": "Anirdesh Kirtan Muktavali",
+    "description": "Imported from anirdesh.com kirtan corpus (Swaminarayan tradition). Respect site terms and copyrights.",
+    "baseUrl": "https://www.anirdesh.com/kirtan",
+    "type": "CRAWLER",
+    "metadata": {
+      "licenseNote": "Verify redistribution rights with Anirdesh.com before publishing recorded media."
+    }
+  },
+  "rateLimitMsDefault": 750,
+  "notes": "Adapter ID must match packages/ingest/src/adapters/anirdesh/config.ts ANIRDESH_ADAPTER_ID."
+}

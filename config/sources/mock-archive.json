@@ -1,0 +1,21 @@
+{
+  "adapterId": "mock-archive",
+  "enabled": true,
+  "source": {
+    "slug": "mock-archive",
+    "name": "Mock archive (development)",
+    "description": "Deterministic offline snapshots for CI and adapter development. No external HTTP.",
+    "baseUrl": "https://example.invalid/mock-archive",
+    "type": "IMPORT",
+    "metadata": {
+      "purpose": "example-second-adapter"
+    }
+  },
+  "rateLimitMsDefault": 0,
+  "mock": {
+    "items": [
+      { "key": "alpha", "ordinal": 1 },
+      { "key": "beta", "ordinal": 2 }
+    ]
+  }
+}

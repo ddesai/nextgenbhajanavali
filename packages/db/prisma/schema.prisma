@@ -34,6 +34,7 @@ model Kirtan {
   id                    String    @id @default(cuid())
   sourceId              String
   source                Source    @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  /// Stable id from the upstream corpus when present (e.g. Anirdesh `kid`). Maps from `NormalizedKirtan.canonicalContentId`.
   externalId            String?
   slug                  String    @unique
   title                 String
@@ -41,6 +42,8 @@ model Kirtan {
   summary               String?
   publishedAt           DateTime?
   metadata              Json      @default("{}")
+  /// Denormalized plain text for PostgreSQL FTS; keep in sync when texts change (ingest / admin). `searchVector` is generated in DB (see SEARCH.md).
+  searchDocument        String    @default("") @db.Text
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 

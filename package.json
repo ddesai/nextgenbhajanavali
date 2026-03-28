@@ -10,7 +10,14 @@
     "db:migrate": "pnpm --filter @ngb/db exec prisma migrate dev",
     "db:push": "pnpm --filter @ngb/db exec prisma db push",
     "db:seed": "pnpm --filter @ngb/db exec prisma db seed",
-    "db:studio": "pnpm --filter @ngb/db exec prisma studio"
+    "db:studio": "pnpm --filter @ngb/db exec prisma studio",
+    "ingest": "pnpm --filter @ngb/tool-ingest start --",
+    "ingest:list-adapters": "pnpm --filter @ngb/tool-ingest start -- list-adapters",
+    "discover:source": "pnpm --filter @ngb/tool-ingest start -- discover",
+    "crawl:source": "pnpm --filter @ngb/tool-ingest start -- crawl",
+    "parse:source": "pnpm --filter @ngb/tool-ingest start -- parse",
+    "sync:source": "pnpm --filter @ngb/tool-ingest start -- sync",
+    "import:ingest": "pnpm --filter @ngb/tool-ingest start -- import"
   },
   "devDependencies": {
     "turbo": "^2.3.3",

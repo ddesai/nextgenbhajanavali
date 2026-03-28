@@ -29,6 +29,15 @@ async function main() {
     },
   });
 
+  const k1Meta = {
+    categoryEnglish: "Prarthana",
+    categoryGujarati: "પ્રાર્થના",
+    popularScore: 10,
+    raagEnglish: "Bhairavi",
+    author: "સદ્‍ગુરુ પ્રેમાનંદ સ્વામી",
+    authorLatin: "Sadguru Premanand Swami",
+  };
+
   const k1Slug = "shree-ram-jay-jay-ram";
   const k1 = await prisma.kirtan.upsert({
     where: { slug: k1Slug },
@@ -39,6 +48,7 @@ async function main() {
       summary: "Call-and-response remembrance of Lord Ram.",
       externalId: "demo-001",
       sourceId: source.id,
+      metadata: json(k1Meta),
     },
     update: {
       title: "શ્રી રામ જય જય રામ",
@@ -46,6 +56,7 @@ async function main() {
       summary: "Call-and-response remembrance of Lord Ram.",
       externalId: "demo-001",
       sourceId: source.id,
+      metadata: json(k1Meta),
     },
   });
 
@@ -90,6 +101,12 @@ async function main() {
     },
   });
 
+  const k2Meta = {
+    categoryEnglish: "Dhun",
+    categoryGujarati: "ધૂન",
+    popularScore: 8,
+  };
+
   const k2Slug = "hare-krishna-maha-mantra";
   const k2 = await prisma.kirtan.upsert({
     where: { slug: k2Slug },
@@ -100,6 +117,7 @@ async function main() {
       summary: "The great mantra for congregational chanting.",
       externalId: "demo-002",
       sourceId: source.id,
+      metadata: json(k2Meta),
     },
     update: {
       title: "હરે કૃષ્ણ મહામંત્ર",
@@ -107,7 +125,58 @@ async function main() {
       summary: "The great mantra for congregational chanting.",
       externalId: "demo-002",
       sourceId: source.id,
+      metadata: json(k2Meta),
     },
+  });
+
+  const k3Meta = {
+    categoryEnglish: "Arti",
+    categoryGujarati: "આરતી",
+    popularScore: 12,
+  };
+
+  const k3Slug = "sandhya-arti-demo";
+  const k3 = await prisma.kirtan.upsert({
+    where: { slug: k3Slug },
+    create: {
+      slug: k3Slug,
+      title: "શ્યામ સરનાર તમે ક્રુપા કરજ્યો",
+      titleTransliterated: "Śyām sarnār tame kṛpā karajyo",
+      summary: "Sandhyā āratī — demo entry for the Arti category.",
+      externalId: "demo-003",
+      sourceId: source.id,
+      metadata: json(k3Meta),
+    },
+    update: {
+      title: "શ્યામ સરનાર તમે ક્રુપા કરજ્યો",
+      titleTransliterated: "Śyām sarnār tame kṛpā karajyo",
+      summary: "Sandhyā āratī — demo entry for the Arti category.",
+      externalId: "demo-003",
+      sourceId: source.id,
+      metadata: json(k3Meta),
+    },
+  });
+
+  await prisma.kirtanText.deleteMany({ where: { kirtanId: k3.id } });
+  await prisma.kirtanText.createMany({
+    data: [
+      {
+        kirtanId: k3.id,
+        kind: "GUJARATI_LYRICS",
+        content:
+          "શ્યામ સરનાર તમે ક્રુપા કરજ્યો,\nમારા ઘરે પધારજ્યો... આરતી\nબ્રહ્માનંદ જય જય કારું નિત્ય\nવાંદરાં વૃંદ હતું વિપિન.",
+        locale: "gu",
+        sortOrder: 0,
+      },
+      {
+        kirtanId: k3.id,
+        kind: "TRANSLITERATION",
+        content:
+          "Śyām sarnār tame kṛpā karajyo,\nmārā ghare padhārajyo... āratī\nBrahmānand jay jay kāru nitya\nvāndarām̐ vr̥nda hatu̐ vipina.",
+        locale: "gu-Latn",
+        sortOrder: 1,
+      },
+    ],
   });
 
   await prisma.kirtanText.deleteMany({ where: { kirtanId: k2.id } });
@@ -154,6 +223,7 @@ async function main() {
     data: [
       { kirtanId: k1.id, collectionId: collection.id, sortOrder: 0 },
       { kirtanId: k2.id, collectionId: collection.id, sortOrder: 1 },
+      { kirtanId: k3.id, collectionId: collection.id, sortOrder: 2 },
     ],
   });
 
@@ -171,6 +241,24 @@ async function main() {
         toKirtanId: k2.id,
         relationType: "PAIR_DEMO",
         metadata: { note: "Example graph edge for development" },
+      },
+    });
+  }
+
+  const rel2 = await prisma.kirtanRelation.findFirst({
+    where: {
+      fromKirtanId: k3.id,
+      toKirtanId: k1.id,
+      relationType: "PAIR_DEMO",
+    },
+  });
+  if (!rel2) {
+    await prisma.kirtanRelation.create({
+      data: {
+        fromKirtanId: k3.id,
+        toKirtanId: k1.id,
+        relationType: "PAIR_DEMO",
+        metadata: { note: "Related arti ↔ prarthana demo" },
       },
     });
   }

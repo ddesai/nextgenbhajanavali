@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Card, CardDescription, CardHeader, CardTitle } from "@ngb/ui";
+import { EmptyState } from "@/components/empty-state";
 import { listCollections } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Collections",
-  description: "Curated groups of kirtans and bhajans.",
+  description: "Curated sets of kirtans for seasons and themes.",
   alternates: { canonical: "/collections" },
 };
 
@@ -15,39 +15,44 @@ export default async function CollectionsPage() {
   const collections = await listCollections();
 
   return (
-    <div className="space-y-6">
-      <header>
-        <h1 className="text-3xl font-semibold tracking-tight">Collections</h1>
-        <p className="mt-2 text-muted-foreground">
-          Theme-based groupings—expandable as you add more curated sets.
+    <div className="space-y-8">
+      <header className="space-y-2">
+        <h1 className="font-display text-3xl font-medium">Collections</h1>
+        <p className="text-muted-foreground">
+          Hand-picked groupings—open one and read straight through.
         </p>
       </header>
-      <ul className="grid list-none gap-4 p-0 sm:grid-cols-2">
-        {collections.map((c) => (
-          <li key={c.id}>
-            <Card className="h-full transition-shadow hover:shadow-md">
-              <CardHeader>
-                <CardTitle className="text-lg">
-                  <Link
-                    href={`/collections/${c.slug}`}
-                    className="rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                  >
-                    {c.name}
-                  </Link>
-                </CardTitle>
+
+      {collections.length === 0 ? (
+        <EmptyState
+          title="No collections yet"
+          description="Collections will appear as editors curate sets. Search has everything in one list."
+          icon={<span aria-hidden>🌼</span>}
+        />
+      ) : (
+        <ul className="grid list-none gap-4 p-0 sm:grid-cols-2">
+          {collections.map((c) => (
+            <li key={c.id}>
+              <Link
+                href={`/collections/${c.slug}`}
+                className="block rounded-3xl border border-border/70 bg-card/70 p-6 transition hover:border-primary/25 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <h2 className="font-display text-lg font-medium text-foreground">
+                  {c.name}
+                </h2>
                 {c.description ? (
-                  <CardDescription className="line-clamp-3">
+                  <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-muted-foreground">
                     {c.description}
-                  </CardDescription>
+                  </p>
                 ) : null}
-                <p className="text-sm text-muted-foreground">
+                <p className="mt-4 text-sm font-medium text-primary">
                   {c._count.kirtans} kirtan{c._count.kirtans === 1 ? "" : "s"}
                 </p>
-              </CardHeader>
-            </Card>
-          </li>
-        ))}
-      </ul>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

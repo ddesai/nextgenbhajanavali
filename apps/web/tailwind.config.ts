@@ -12,6 +12,8 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
+        sans: ["var(--font-sans)", "system-ui", "sans-serif"],
+        display: ["var(--font-display)", "var(--font-sans)", "Georgia", "serif"],
         gujarati: ["var(--font-gujarati)", "var(--font-sans)", "system-ui"],
       },
     },
