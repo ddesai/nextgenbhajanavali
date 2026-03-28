@@ -20,6 +20,9 @@
     "import:ingest": "pnpm --filter @ngb/tool-ingest start -- import"
   },
   "devDependencies": {
+    "next": "^15.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
     "turbo": "^2.3.3",
     "typescript": "^5.7.2"
   }

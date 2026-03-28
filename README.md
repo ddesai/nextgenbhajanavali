@@ -105,22 +105,44 @@ Docs: [PRODUCT-FOUNDATION.md](docs/PRODUCT-FOUNDATION.md) · [DESIGN-REVIEW.md](
 
 ## Deploying to Vercel
 
-1. **Root directory**: monorepo root; **framework**: Next.js; set **project root** or use Turborepo remote cache as you prefer. Common pattern: Vercel project **Root Directory** = `apps/web` with install command `cd ../.. && pnpm install` and build `cd ../.. && pnpm turbo run build --filter=web` — or use a single Vercel project pointing at repo root with custom build command:
+Vercel detects **Next.js** from the `package.json` at your configured **Root Directory**. If Root Directory is blank, that file is the **repo root** `package.json` (which used to have no `next`), which causes: *“No Next.js version detected…”*.
+
+**Supported setups:**
+
+| Root Directory | Config used | Notes |
+|----------------|-------------|--------|
+| **`apps/web`** (recommended) | [`apps/web/vercel.json`](apps/web/vercel.json) | Matches Turborepo docs; root [`package.json`](package.json) still lists `next` as a safety net. |
+| **Empty / repo root** | Root [`vercel.json`](vercel.json) | Root `package.json` now includes **`next`**, `react`, `react-dom` so detection succeeds. |
+
+1. **Connect the repo** in [Vercel](https://vercel.com/new) → import `nextgenbhajanavali`.
+2. **Project → Settings → General → Root Directory**: either set **`apps/web`** (recommended) or leave blank for root deploy with root `vercel.json`.
+3. **Project → Settings → Build & Development**: clear **Install Command** and **Build Command** overrides so the applicable `vercel.json` applies—remove stale **`cd ../.. && …`** overrides unless you know Root Directory is `apps/web` and you intend them.
+4. Optionally enable **Include source files outside of the Root Directory** if the build cannot see `packages/*`.
+5. **Environment variables** (Production + Preview as needed):
+
+   - `DATABASE_URL` — Postgres **pooler** URL for serverless (e.g. Supabase port **6543**, `pgbouncer=true`). See **Supabase / Postgres** above.
+   - `NEXT_PUBLIC_SITE_URL` — `https://your-app.vercel.app` or your custom domain (**no** trailing slash).
+
+6. **Database migrations**: run once per environment **before** or **after** first deploy (not from the Vercel build unless you add an explicit step):
 
    ```bash
-   pnpm install && pnpm turbo run build --filter=web
+   cd packages/db && DATABASE_URL="postgresql://…direct…" pnpm exec prisma migrate deploy
    ```
 
-2. **Environment variables** in Vercel:
+   Use the **direct** (non-pooler) URL for `migrate deploy` if your host requires it.
 
-   - `DATABASE_URL` — pooled connection string for production.
-   - `NEXT_PUBLIC_SITE_URL` — `https://your-domain.com` (no trailing slash). Drives **metadataBase**, **Open Graph**, **sitemap**, **robots host**.
+7. **Local CLI** (optional): link and deploy from the **repository root** (not `apps/web` alone), so the full pnpm workspace is uploaded:
 
-3. **Build**: `pnpm build` (or filtered web build). Ensure Prisma client is generated (`@ngb/db` `postinstall` or build dependency).
+   ```bash
+   cd /path/to/nextgenbhajanavali
+   npx vercel login
+   npx vercel link    # select this project
+   npx vercel --prod
+   ```
 
-4. **Migrations**: run `prisma migrate deploy` in CI or a Vercel **Deploy Hook** / release step using `packages/db`, **not** only `db push` in production unless intentional.
+   After `vercel link`, run **`npx vercel pull`** once—if downloaded settings still show `"rootDirectory": null`, fix **Root Directory** in the dashboard (step 2). A CLI deploy started only inside `apps/web` uploads too few files and the build will fail.
 
-5. **Ingest**: run crawlers/sync on a worker, GitHub Action, or laptop — not on the serverless request path.
+8. **Ingest** stays off Vercel (run CLI/worker locally or in CI).
 
 ## SEO & sharing
 
