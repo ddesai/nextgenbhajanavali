@@ -1,4 +1,5 @@
 import { existsSync, readdirSync } from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -33,11 +34,26 @@ function pickQueryEngineFile(candidates: string[]): string | undefined {
   return candidates[0];
 }
 
+function resolveGeneratedPrismaDir(here: string): string | undefined {
+  const nextToFile = path.join(here, "generated", "prisma");
+  if (existsSync(nextToFile)) return nextToFile;
+  /** Bundled Next chunks: `here` may be under `.next/server`; resolve real package via Node. */
+  try {
+    const require = createRequire(import.meta.url);
+    const entry = require.resolve("@ngb/db");
+    const fromPkg = path.join(path.dirname(entry), "generated", "prisma");
+    if (existsSync(fromPkg)) return fromPkg;
+  } catch {
+    /* missing in some test stubs */
+  }
+  return undefined;
+}
+
 export function ensurePrismaQueryEngineLibraryEnv() {
   if (process.env.PRISMA_QUERY_ENGINE_LIBRARY) return;
   const here = path.dirname(fileURLToPath(import.meta.url));
-  const genDir = path.join(here, "generated", "prisma");
-  if (!existsSync(genDir)) return;
+  const genDir = resolveGeneratedPrismaDir(here);
+  if (!genDir) return;
   const candidates = readdirSync(genDir).filter(
     (f) => f.startsWith("libquery_engine-") && f.endsWith(".node"),
   );
