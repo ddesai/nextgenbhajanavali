@@ -11,6 +11,7 @@
     "db:migrate:deploy": "pnpm --filter @ngb/db exec prisma migrate deploy",
     "db:push": "pnpm --filter @ngb/db exec prisma db push",
     "db:seed": "pnpm --filter @ngb/db exec prisma db seed",
+    "db:import:anoopam-pilot": "cd packages/db && npx tsx src/import-anoopam-ranshingu-pilot.ts",
     "db:studio": "pnpm --filter @ngb/db exec prisma studio",
     "ingest": "pnpm --filter @ngb/tool-ingest start --",
     "ingest:list-adapters": "pnpm --filter @ngb/tool-ingest start -- list-adapters",
